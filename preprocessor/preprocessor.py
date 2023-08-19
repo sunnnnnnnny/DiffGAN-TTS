@@ -12,7 +12,6 @@ from tqdm import tqdm
 from pathlib import Path
 
 import audio as Audio
-from model import PreDefinedEmbedder
 from utils.pitch_tools import get_pitch, get_cont_lf0, get_lf0_cwt
 from utils.tools import plot_embedding
 
@@ -52,8 +51,9 @@ class Preprocessor:
         self.speaker_emb = None
         self.in_sub_dirs = [p for p in os.listdir(self.in_dir) if os.path.isdir(os.path.join(self.in_dir, p))]
         if self.multi_speaker and preprocess_config["preprocessing"]["speaker_embedder"] != "none":
-            self.speaker_emb = PreDefinedEmbedder(preprocess_config)
-            self.speaker_emb_dict = self._init_spker_embeds(self.in_sub_dirs)
+            #self.speaker_emb = PreDefinedEmbedder(preprocess_config)
+            #self.speaker_emb_dict = self._init_spker_embeds(self.in_sub_dirs)
+            self.speaker_emb_dict = None
 
     def _init_spker_embeds(self, spkers):
         spker_embeds = dict()

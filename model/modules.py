@@ -351,19 +351,19 @@ class VarianceAdaptor(nn.Module):
             -1, max_src_len, -1
         )
 
-        output_1 = x.clone()
+        output_1 = x.clone() # [2,103,256]
         log_duration_prediction = self.duration_predictor(
             x.detach() + self.predictor_grad * (x - x.detach()), src_mask
-        )
+        ) # log_duration_prediction [2,103]
         if self.use_energy_embed and self.energy_feature_level == "phoneme_level":
             energy_prediction, energy_embedding = self.get_energy_embedding(
                 x, energy_target, src_mask, e_control
-            )
+            ) # energy_prediction [2,103]  energy_embedding [2,103,256]
             output_1 += energy_embedding
         x = output_1.clone()
 
         if duration_target is not None:
-            x, mel_len = self.length_regulator(x, duration_target, max_len)
+            x, mel_len = self.length_regulator(x, duration_target, max_len) # x [2,737,256] mel_len [743,737]
             duration_rounded = duration_target
         else:
             duration_rounded = torch.clamp(
@@ -378,16 +378,16 @@ class VarianceAdaptor(nn.Module):
         if self.use_pitch_embed: # and self.pitch_type in ["frame", "cwt"]:
             if pitch_target is not None:
                 if self.pitch_type == "cwt":
-                    cwt_spec = pitch_target[f"cwt_spec"]
-                    f0_mean = pitch_target["f0_mean"]
-                    f0_std = pitch_target["f0_std"]
+                    cwt_spec = pitch_target[f"cwt_spec"] # [2,737,10]
+                    f0_mean = pitch_target["f0_mean"] # f0_mean [5,36, 5,40]
+                    f0_std = pitch_target["f0_std"]  # f0_std [0.25, 0.23]
                     pitch_target["f0"] = cwt2f0_norm(
                         cwt_spec, f0_mean, f0_std, mel2ph, self.preprocess_config["preprocessing"]["pitch"],
-                    )
+                    ) # pitch_target["f0"] [2,737]
                     pitch_target.update({"f0_cwt": pitch_target["f0"]})
                 pitch_prediction, pitch_embedding = self.get_pitch_embedding(
                     x, pitch_target["f0"], pitch_target["uv"], mel2ph, p_control, encoder_out=output_1
-                )
+                ) # pitch_embedding [2,737, 256] pitch_prediction dict keys:
             else:
                 pitch_prediction, pitch_embedding = self.get_pitch_embedding(
                     x, None, None, mel2ph, p_control, encoder_out=output_1
@@ -600,27 +600,27 @@ class Denoiser(nn.Module):
     def forward(self, mel, diffusion_step, conditioner, speaker_emb, mask=None):
         """
 
-        :param mel: [B, 1, M, T]
-        :param diffusion_step: [B,]
-        :param conditioner: [B, M, T]
-        :param speaker_emb: [B, M]
+        :param mel: [B, 1, M, T]  mel [2,1,80,737]
+        :param diffusion_step: [B,] diffusion_step [1,1]
+        :param conditioner: [B, M, T] conditioner [2,256,737]
+        :param speaker_emb: [B, M]  speaker_emb None
         :return:
         """
-        x = mel[:, 0]
-        x = self.input_projection(x)  # x [B, residual_channel, T]
-        x = F.relu(x)
+        x = mel[:, 0] # x [2, 80, 737]
+        x = self.input_projection(x)  # x [2,256, 737] x [B, residual_channel, T]
+        x = F.relu(x) # ~
 
-        diffusion_step = self.diffusion_embedding(diffusion_step)
-        diffusion_step = self.mlp(diffusion_step)
+        diffusion_step = self.diffusion_embedding(diffusion_step) # diffusion_step [2,256]
+        diffusion_step = self.mlp(diffusion_step)  # diffusion_step [2,256] > [2,1024] > [2,256]
 
         skip = []
         for layer in self.residual_layers:
             x, skip_connection = layer(x, conditioner, diffusion_step, speaker_emb)
             skip.append(skip_connection)
 
-        x = torch.sum(torch.stack(skip), dim=0) / math.sqrt(len(self.residual_layers))
-        x = self.skip_projection(x)
+        x = torch.sum(torch.stack(skip), dim=0) / math.sqrt(len(self.residual_layers)) # len(skip)=20 skip[0] = [2,256,737]
+        x = self.skip_projection(x) # [2,256,737] > [2,256,737]
         x = F.relu(x)
-        x = self.output_projection(x)  # [B, 80, T]
+        x = self.output_projection(x)  # [B, 80, T] [2,80,737]
 
         return x[:, None, :, :]

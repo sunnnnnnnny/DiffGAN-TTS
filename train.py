@@ -28,6 +28,7 @@ def main(args, configs):
     dataset = Dataset(
         "train.txt", args, preprocess_config, model_config, train_config, sort=True, drop_last=True
     )
+    dataset.__getitem__(0)
     batch_size = train_config["optimizer"]["batch_size"]
     group_size = 4  # Set this larger than 1 to enable sorting in Dataset
     assert batch_size * group_size < len(dataset)
@@ -40,8 +41,8 @@ def main(args, configs):
 
     # Prepare model
     model, discriminator, optG_fs2, optG, optD, sdlG, sdlD, epoch = get_model(args, configs, device, train=True)
-    model = nn.DataParallel(model)
-    discriminator = nn.DataParallel(discriminator)
+    #model = nn.DataParallel(model)
+    #discriminator = nn.DataParallel(discriminator)
     num_params_G = get_param_num(model)
     num_params_D = get_param_num(discriminator)
     Loss = DiffGANTTSLoss(args, preprocess_config, model_config, train_config).to(device)
@@ -88,7 +89,7 @@ def main(args, configs):
     outer_bar.update()
 
     while True:
-        inner_bar = tqdm(total=len(loader), desc="Epoch {}".format(epoch), position=1)
+        #inner_bar = tqdm(total=len(loader), desc="Epoch {}".format(epoch), position=1)
         for batchs in loader:
             for batch in batchs:
                 batch = to_device(batch, device)
@@ -128,7 +129,7 @@ def main(args, configs):
                     # Forward
                     output, *_ = model(*(batch[2:]))
 
-                    xs, spk_emb, t, mel_masks = *(output[1:4]), output[9]
+                    xs, spk_emb, t, mel_masks = *(output[1:4]), output[9] # xs :x_ts, x_t_prevs, x_t_prev_preds spk_emb None t:tensor([1, 1]) mel_masks [2,737]
                     x_ts, x_t_prevs, x_t_prev_preds, spk_emb, t = \
                         [x.detach() if x is not None else x for x in (list(xs) + [spk_emb, t])]
 
@@ -274,13 +275,15 @@ if __name__ == "__main__":
         "--model",
         type=str,
         choices=["naive", "aux", "shallow"],
-        required=True,
+        required=False,
+        default="naive",
         help="training model type",
     )
     parser.add_argument(
         "--dataset",
         type=str,
-        required=True,
+        required=False,
+        default="LJSpeech",
         help="name of dataset",
     )
     args = parser.parse_args()

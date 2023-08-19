@@ -16,7 +16,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset",
         type=str,
-        required=True,
+        default="LJSpeech",
+        required=False,
         help="name of dataset",
     )
     args = parser.parse_args()

@@ -23,10 +23,10 @@ def default(val, d):
     return d() if isfunction(d) else d
 
 
-def extract(a, t, x_shape):
+def extract(a, t, x_shape): # a tensor([0.0000, 0.7076, 0.9916, 0.9998]) t tensor([1, 1]) x_shape torch.Size([2, 1, 80, 737])
     b, *_ = t.shape
-    out = a.gather(-1, t)
-    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+    out = a.gather(-1, t) # out tensor([0.7076, 0.7076])
+    return out.reshape(b, *((1,) * (len(x_shape) - 1))) #
 
 
 def noise_like(shape, device, repeat=False):
@@ -101,19 +101,19 @@ class GaussianDiffusion(nn.Module):
                 extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
         )
 
-    def q_posterior(self, x_start, x_t, t):
+    def q_posterior(self, x_start, x_t, t): # x_start [2,1,80,737] x_t [2,1,80,737] t [1,1]
         posterior_mean = (
-                extract(self.posterior_mean_coef1, t, x_t.shape) * x_start +
-                extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
-        )
-        posterior_variance = extract(self.posterior_variance, t, x_t.shape)
-        posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
+                extract(self.posterior_mean_coef1, t, x_t.shape) * x_start + # self.posterior_mean_coef1 tensor([1.0000, 0.5206, 0.0804, 0.0035])
+                extract(self.posterior_mean_coef2, t, x_t.shape) * x_t # self.posterior_mean_coef2  tensor([0.0000, 0.1102, 0.0434, 0.0126])
+        ) # posterior_mean [2,1,80,737]
+        posterior_variance = extract(self.posterior_variance, t, x_t.shape) # posterior_variance [2,1,1,1]
+        posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape) # posterior_log_variance_clipped [2,1,1,1]
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
-    def q_posterior_sample(self, x_start, x_t, t, repeat_noise=False):
-        b, *_, device = *x_start.shape, x_start.device
-        model_mean, _, model_log_variance = self.q_posterior(x_start=x_start, x_t=x_t, t=t)
-        noise = noise_like(x_start.shape, device, repeat_noise)
+    def q_posterior_sample(self, x_start, x_t, t, repeat_noise=False): # x_start [2,1,80,737] x_t [2,1,80,737] t [1,1] repeat_noise=False
+        b, *_, device = *x_start.shape, x_start.device # b  2
+        model_mean, _, model_log_variance = self.q_posterior(x_start=x_start, x_t=x_t, t=t) # model_mean [2,1,80,737] model_log_variance [2,1,1,1]
+        noise = noise_like(x_start.shape, device, repeat_noise) # noise [2,1,80,737]
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x_start.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
@@ -174,22 +174,22 @@ class GaussianDiffusion(nn.Module):
             )
         return trace
 
-    def diffuse_fn(self, x_start, t, noise=None):
+    def diffuse_fn(self, x_start, t, noise=None): # x_start [2,737,80] t[t1=0,t2=0] noise=None
         x_start = self.norm_spec(x_start)
-        x_start = x_start.transpose(1, 2)[:, None, :, :]  # [B, 1, M, T]
-        zero_idx = t < 0 # for items where t is -1
-        t[zero_idx] = 0
-        noise = default(noise, lambda: torch.randn_like(x_start))
-        out = self.q_sample(x_start=x_start, t=t, noise=noise)
+        x_start = x_start.transpose(1, 2)[:, None, :, :]  # [2,1,80,737]
+        zero_idx = t < 0 # for items where t is -1, zero_idx = [False, False]
+        t[zero_idx] = 0 # t[0,0]
+        noise = default(noise, lambda: torch.randn_like(x_start)) # torch.randn_like 标准正态分布 [2,1,80,737]
+        out = self.q_sample(x_start=x_start, t=t, noise=noise) # [2,1,80,737]
         out[zero_idx] = x_start[zero_idx] # set x_{-1} as the gt mel
         return out
 
-    def forward(self, mel, cond, spk_emb, mel_mask, coarse_mel=None, clip_denoised=True):
-        b, *_, device = *cond.shape, cond.device
+    def forward(self, mel, cond, spk_emb, mel_mask, coarse_mel=None, clip_denoised=True): # cond [2,737,256] mel [2,737,80] spk_emb None mel_mask [2,737]
+        b, *_, device = *cond.shape, cond.device  # b:2
         x_t = x_t_prev = x_t_prev_pred = t = None
-        mel_mask = ~mel_mask.unsqueeze(-1)
-        cond = cond.transpose(1, 2)
-        self.cond = cond.detach()
+        mel_mask = ~mel_mask.unsqueeze(-1) # mel_mask [2,737,1]
+        cond = cond.transpose(1, 2) # [2,256,737]
+        self.cond = cond.detach() # detach 分离tensor，不再具有梯度
         self.spk_emb = spk_emb.detach() if spk_emb is not None else None
         if mel is None:
             if self.model != "shallow":
@@ -199,31 +199,31 @@ class GaussianDiffusion(nn.Module):
                 noise = self.diffuse_fn(coarse_mel, t) * mel_mask.unsqueeze(-1).transpose(1, -1)
             x_0_pred = self.sampling(noise=noise)[-1] * mel_mask
         else:
-            mel_mask = mel_mask.unsqueeze(-1).transpose(1, -1)
-            t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
+            mel_mask = mel_mask.unsqueeze(-1).transpose(1, -1) # [2,737,1,1] -> [2,1,1,737]
+            t = torch.randint(0, self.num_timesteps, (b,), device=device).long() # self.num_timesteps=4   t [1, 1]
 
             # Diffusion
-            x_t = self.diffuse_fn(mel, t) * mel_mask
-            x_t_prev = self.diffuse_fn(mel, t - 1) * mel_mask
+            x_t = self.diffuse_fn(mel, t) * mel_mask # 正向过程 mel [2,737,80] t [1,1]  > xt
+            x_t_prev = self.diffuse_fn(mel, t - 1) * mel_mask  # mel [2,737,80] t[0,0] > xt-1
 
             # Predict x_{start}
-            x_0_pred = self.denoise_fn(x_t, t, cond, spk_emb) * mel_mask
+            x_0_pred = self.denoise_fn(x_t, t, cond, spk_emb) * mel_mask  # 反向过程 [2,1,80,737]
             if clip_denoised:
-                x_0_pred.clamp_(-1., 1.)
+                x_0_pred.clamp_(-1., 1.) # 限幅作用
 
             # Sample x_{t-1} using the posterior distribution
             if self.model != "shallow":
-                x_start = x_0_pred
+                x_start = x_0_pred # x_start = [2,1,80,737]
             else:
                 x_start = self.norm_spec(coarse_mel)
                 x_start = x_start.transpose(1, 2)[:, None, :, :]  # [B, 1, M, T]
-            x_t_prev_pred = self.q_posterior_sample(x_start=x_start, x_t=x_t, t=t) * mel_mask
+            x_t_prev_pred = self.q_posterior_sample(x_start=x_start, x_t=x_t, t=t) * mel_mask # [2,1,80,737]
 
             x_0_pred = x_0_pred[:, 0].transpose(1, 2)
             x_t = x_t[:, 0].transpose(1, 2)
             x_t_prev = x_t_prev[:, 0].transpose(1, 2)
             x_t_prev_pred = x_t_prev_pred[:, 0].transpose(1, 2)
-        return x_0_pred, x_t, x_t_prev, x_t_prev_pred, t
+        return x_0_pred, x_t, x_t_prev, x_t_prev_pred, t  # [2,737_80] [2,737,80] [2,737,80] [2,737,80]
 
     def norm_spec(self, x):
         return (x - self.spec_min) / (self.spec_max - self.spec_min) * 2 - 1

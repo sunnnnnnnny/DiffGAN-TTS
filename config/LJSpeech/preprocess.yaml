@@ -1,10 +1,10 @@
 dataset: "LJSpeech"
 
 path:
-  corpus_path: "/home/keon/speech-datasets/en/LJSpeech-1.1"
+  corpus_path: "/Users/zhangsan/Workspace/dataset_tts/LJSpeech-1.1"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
-  raw_path: "./raw_data/LJSpeech"
-  preprocessed_path: "./preprocessed_data/LJSpeech"
+  raw_path: "/Users/zhangsan/Workspace/fork/tmp/DiffGAN-TTS/raw_data/LJSpeech"
+  preprocessed_path: "/Users/zhangsan/Workspace/fork/tmp/DiffGAN-TTS/preprocessed_data/LJSpeech"
 
 preprocessing:
   val_size: 512

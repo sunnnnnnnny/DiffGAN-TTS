@@ -628,9 +628,9 @@ class DiffusionEmbedding(nn.Module):
 
     def __init__(self, d_denoiser):
         super(DiffusionEmbedding, self).__init__()
-        self.dim = d_denoiser
+        self.dim = d_denoiser # self.dim = 256
 
-    def forward(self, x):
+    def forward(self, x): # x = [1, 1]
         device = x.device
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)

@@ -3,7 +3,7 @@ path:
   log_path: "./output/log/LJSpeech"
   result_path: "./output/result/LJSpeech"
 optimizer:
-  batch_size: 32
+  batch_size: 2
   batch_size_shallow: 16
   betas: [0.5, 0.9]
   gamma: 0.999

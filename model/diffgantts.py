@@ -70,14 +70,14 @@ class DiffGANTTS(nn.Module):
         d_control=1.0,
     ):
 
-        src_masks = get_mask_from_lengths(src_lens, max_src_len)
+        src_masks = get_mask_from_lengths(src_lens, max_src_len) # src_masks [2,103]
         mel_masks = (
             get_mask_from_lengths(mel_lens, max_mel_len)
             if mel_lens is not None
             else None
-        )
+        ) # mel_masks [2,737]
 
-        output = self.text_encoder(texts, src_masks)
+        output = self.text_encoder(texts, src_masks) # [2,103,256]
 
         speaker_emb = None
         if self.speaker_emb is not None:
@@ -88,14 +88,14 @@ class DiffGANTTS(nn.Module):
                 speaker_emb = self.speaker_emb(spker_embeds) # [B, H]
 
         (
-            output,
-            p_targets,
-            p_predictions,
-            e_predictions,
-            log_d_predictions,
-            d_rounded,
-            mel_lens,
-            mel_masks,
+            output, # [2,737,256]
+            p_targets, # dict: len(keys)=7 pitch,f0,uv,cwt_spec,f0_mean,f0_std,f0_cwt
+            p_predictions, # dict: len(keys)=5, pitch_pred,f0_demorm,cwt,f0_mean,f0_std
+            e_predictions, # [2,103]
+            log_d_predictions, # [2,103]
+            d_rounded, # [2,103]
+            mel_lens,  # [734,737]
+            mel_masks,  # [2,737]
         ) = self.variance_adaptor(
             output,
             src_masks,
@@ -114,7 +114,7 @@ class DiffGANTTS(nn.Module):
 
         if self.model == "naive":
             coarse_mels = None
-            (
+            (  # return x_0_pred, x_t, x_t_prev, x_t_prev_pred, t
                 output, # x_0_pred
                 x_ts,
                 x_t_prevs,
